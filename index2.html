@@ -55,7 +55,6 @@
     .about-content h2{color:var(--accent-teal)}
     .about-content h3{color:var(--accent-blue)}
     .about-content ul{list-style:disc;padding-left:20px}
-    #defend-earth-layout{display:grid;grid-template-columns:300px 1fr 300px;gap:1.5rem}
     #threat-list,#strategy-panel{list-style:none;padding:0;margin:0;max-height:500px;overflow-y:auto}
     #threat-list li{background-color:var(--bg-medium);padding:1rem;border-radius:6px;margin-bottom:1rem;cursor:pointer;border-left:4px solid var(--accent-red)}
     #threat-list li:hover,#threat-list li.selected{background-color:var(--bg-light)}
@@ -71,7 +70,6 @@
     <div class="logo">AstroImpact</div>
     <nav>
       <a data-page="simulation-page" class="active">Simulation</a>
-      <a data-page="defend-earth-page">Defending Earth Mode</a>
       <a data-page="orbits-page">3D Orbits</a>
       <a data-page="about-page">About</a>
     </nav>
@@ -92,12 +90,7 @@
         <p class="placeholder">Use the controls at the top to search for asteroids.</p>
       </div>
     </div>
-    <!-- DEFENDING EARTH PAGE -->
-    <div id="defend-earth-page" class="page-content">
-      <h1>Defending Earth Mode</h1>
-      <p>An asteroid impact is imminent. Use available technologies to deflect the threats before time runs out.</p>
-      <div id="defend-earth-layout"></div>
-    </div>
+
 
     <!-- 3D ORBITS PAGE -->
     <div id="orbits-page" class="page-content">
@@ -131,7 +124,6 @@
         <h3>Cómo usar</h3>
         <ul>
           <li>En "Simulation" busca NEOs (Near-Earth Objects), selecciona uno y ejecuta la simulación.</li>
-          <li>En "Defending Earth" juega el modo defensivo y protege la Tierra usando diferentes estrategias.</li>
           <li>En "3D Orbits" visualiza órbitas alrededor del Sol y selecciona asteroides para trazar sus trayectorias.</li>
         </ul>
       </div>
@@ -184,7 +176,6 @@
       document.getElementById(pageId).classList.add('active');
       document.querySelectorAll('nav a').forEach(l=>l.classList.remove('active'));
       e.target.classList.add('active');
-      if(pageId==='defend-earth-page') displayDefendEarthLayout();
       if(pageId==='orbits-page') populateOrbitsList();
     }
 
@@ -285,66 +276,7 @@
       resultsModal.style.display='flex';
     }
 
-    // ---------- Defend Earth Game (mejorado) ----------
-    function displayDefendEarthLayout(){
-      const c = document.getElementById('defend-earth-layout');
-      if(fetchedAsteroids.length===0){ c.innerHTML=`<p class="placeholder">First, search for asteroids on the Simulation page.</p>`; return; }
-      c.innerHTML = `
-        <div class="card">
-          <h2>Incoming Threats</h2>
-          <ul id="threat-list"></ul>
-        </div>
-        <div class="card">
-          <h2>Global Status</h2>
-          <p>Score: <strong id="score">0</strong></p>
-          <p>Time Remaining: <strong id="timer">120</strong>s</p>
-          <div id="game-status">Select a threat to begin.</div>
-        </div>
-        <div class="card">
-          <h2>Deflection Strategy</h2>
-          <div id="strategy-panel"></div>
-        </div>
-      `;
-      const tl = document.getElementById('threat-list'), gs = document.getElementById('game-status'), sp = document.getElementById('strategy-panel');
-      let selected = null; let score = 0;
 
-      const hazards = fetchedAsteroids.filter(a=>a.is_potentially_hazardous).slice(0,8);
-      hazards.forEach(t=>{
-        const li=document.createElement('li'); li.dataset.id=t.id; li.innerHTML=`<strong>${t.name}</strong><br><small>Size: ${t.diameter_km.toFixed(3)} km</small>`;
-        li.addEventListener('click', ()=>{
-          selected = t; document.querySelectorAll('#threat-list li').forEach(el=>el.classList.remove('selected')); li.classList.add('selected'); gs.textContent = `${t.name} selected. Choose a deflection strategy.`;
-          sp.innerHTML = `<div style="display:grid;gap:8px"><button class="defend-button" data-type="impactor">Kinetic Impactor (8s)</button><button class="defend-button" data-type="tractor">Gravity Tractor (15s)</button><button class="defend-button" data-type="nuke">Nuclear Detonation (risky, 6s)</button></div>`;
-        });
-        tl.appendChild(li);
-      });
-
-      sp.addEventListener('click', (e)=>{
-        if(e.target.tagName==='BUTTON' && selected){
-          const type = e.target.dataset.type; const timeCost = type==='impactor'?8:type==='tractor'?15:6;
-          gs.textContent = `Deploying ${type} against ${selected.name}...`;
-          // simple progress UI
-          const prog=document.createElement('div'); prog.style.marginTop='8px'; prog.textContent='Launching...'; gs.appendChild(prog);
-          setTimeout(()=>{
-            // success depends on type, asteroid size, and a bit of randomness
-            const sizeFactor = Math.max(0.1, 1 - selected.diameter_km/1.0); // larger asteroids harder to deflect
-            const baseSuccess = type==='impactor'?0.75:type==='tractor'?0.9:0.6;
-            const success = Math.random() < (baseSuccess * sizeFactor);
-            const ti = document.querySelector(`#threat-list li[data-id="${selected.id}"]`);
-            if(ti){
-              if(success){ gs.textContent = `SUCCESS! ${selected.name} has been deflected.`; ti.style.borderLeftColor='var(--accent-teal)'; ti.style.pointerEvents='none'; score += Math.round((1+selected.diameter_km)*100); document.getElementById('score').textContent=score; }
-              else{ gs.textContent = `FAILURE! ${type} mission against ${selected.name} failed.`; ti.style.borderLeftColor='var(--accent-red)'; }
-            }
-          }, timeCost*1000);
-        }
-      });
-
-      // Timer
-      let tl_ = 120; const te = document.getElementById('timer'); te.textContent=`${tl_}s`;
-      const ti = setInterval(()=>{
-        if(!document.getElementById('defend-earth-page').classList.contains('active')){ clearInterval(ti); return; }
-        tl_--; te.textContent=`${tl_}s`; if(tl_<=0){ clearInterval(ti); gs.innerHTML=`<strong style="color:var(--accent-red)">TIME'S UP!</strong>`; }
-      },1000);
-    }
 
     // ---------- Map & 3D Impact Scene ----------
     function initMap(){

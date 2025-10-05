@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Orbitscope - Impact Simulator</title>
+  <title>Orbitscope - Asteroid Impact Simulator</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -102,31 +102,28 @@
           <div class="modal-card"><h3>Richter Magnitude</h3><p class="value" id="res-richter">...</p></div>
           <div class="modal-card"><h3>Impact Severity</h3><p><span id="res-severity">...</span></p></div>
           <div class="modal-card"><h3>Affected Area</h3><p class="value" id="res-area">...</p></div>
-          <div class="modal-card"><h3>Estimated Casualties</h3><p class="value" id="res-casualties">...</p></div>
-          <div class="modal-card"><h3>Economic Impact</h3><p class="value" id="res-eco-impact">...</p></div>
+          <div class="modal-card"><h3>Estimated Casualties (impact alone)</h3><p class="value" id="res-casualties">...</p></div>
+          <div class="modal-card"><h3>Economic Impact (estimate)</h3><p class="value" id="res-eco-impact">...</p></div>
         </div>
         <h3>Recommended Mitigation Strategies</h3>
-        
         <ol id="res-mitigation" class="mitigation-list"></ol>
       </div>
     </div>
 
     <div id="about-page" class="page-content">
       <div class="about-content">
-      
       </div>
-       <h2>About Orbitscope</h2>
-<p>Educational and playful simulator to understand impacts. The data comes from NASA’s public API when available.</p>
-<h3>How to Use</h3>
-<ul>
-  <li>In the "Simulation" tab, select a start date and a range of days (maximum 7) to search for near-Earth asteroids.</li>
-  <li>Click on "Search Asteroids" to retrieve real data from NASA.</li>
-  <li>Select an asteroid from the dropdown list and adjust the impact parameters (angle, velocity).</li>
-  <li>Click on "RUN IMPACT SIMULATION" to see the results and visualizations.</li>
-  <li>Use the interactive map to select the impact location by dragging the marker.</li>
-  <li>Explore the 2D and 3D tabs to see different impact visualizations.</li>
-</ul>
-
+          <h2>About Orbitscope</h2>
+          <p>Educational and playful simulator to understand impacts. The data comes from NASA’s public API when available.</p>
+          <h3>How to Use</h3>
+          <ul>
+            <li>In the "Simulation" tab, select a start date and a range of days (maximum 7) to search for near-Earth asteroids.</li>
+            <li>Click on "Search Asteroids" to retrieve real data from NASA.</li>
+            <li>Select an asteroid from the dropdown list and adjust the impact parameters (angle, velocity).</li>
+            <li>Click on "RUN IMPACT SIMULATION" to see the results and visualizations.</li>
+            <li>Use the interactive map to select the impact location by dragging the marker.</li>
+            <li>Explore the 2D and 3D tabs to see different impact visualizations.</li>
+          </ul>
         </ul>
       </div>
     </div>
@@ -134,7 +131,6 @@
 
   <script>
     // ---------- Config & State ----------
-    const API_BASE = 'http://127.0.0.1:5000/api';
     const NASA_API_KEY = '7navEoAK4Qcg1684pjGePLQ8chu0KI46CXcUaWB9'; // Replace with your key if needed
     const NASA_NEO_API_URL = 'https://api.nasa.gov/neo/rest/v1/feed';
     let fetchedAsteroids = [];
@@ -331,43 +327,83 @@
 let map, marker;  // make them accessible outside initMap
 let craterCircle, affectedCircle; // store circles so we can remove/redraw
 
-    function runSimulation() {
+    async function runSimulation() {
       const angle = parseFloat(document.getElementById('angle-slider').value);
       const velocity = parseFloat(document.getElementById('velocity-slider').value);
       const diameterKm = currentAsteroid.diameter_km;
 
+      // Get impact location
+      let lat = 0, lon = 0, locationType = "unknown";
+      let K = 1.161; // Default for land
+      if (map && marker) {
+        const latlng = marker.getLatLng();
+        lat = latlng.lat;
+        lon = latlng.lng;
+        // Use your landPolygons logic to check if on land
+        if (window.landPolygons) {
+          const point = turf.point([lon, lat]);
+          const onLand = window.landPolygons.features.some(f => turf.booleanPointInPolygon(point, f));
+          locationType = onLand ? "land" : "water";
+          K = onLand ? 1.161 : 1.365; // Example: use 0.8 for water, adjust as needed
+        }
+      }
+
       // Perform calculations
       const { kineticEnergyJoules, megatonsTnt, richterMag } = calculateImpactEnergy(diameterKm, angle, velocity);
-      const craterDiameterKm = estimateCraterDiameter(diameterKm, angle, velocity);
+      const craterDiameterKm = estimateCraterDiameter(diameterKm, angle, velocity, K);
+
+      const affectedArea = Math.PI * Math.pow(craterDiameterKm * 15, 2);
+
+      // Show loading placeholders
+      document.getElementById('res-casualties').textContent = "Loading...";
+      document.getElementById('res-eco-impact').textContent = "Loading...";
+
+      // Call ChatGPT for estimates
+      const chatGptResult = await getImpactEstimatesFromChatGPT({
+          angle,
+          velocity,
+          craterDiameterKm,
+          energy: kineticEnergyJoules,
+          lat,
+          lon,
+          locationType,
+          affectedArea,
+          richterMag
+      });
 
       // Update results in the UI
       document.getElementById('res-energy').textContent = `${(kineticEnergyJoules / 1e18).toPrecision(4)} EJ`;
       document.getElementById('res-tnt').textContent = `${megatonsTnt.toPrecision(3)} Mt`;
       document.getElementById('res-crater-d').textContent = `${craterDiameterKm.toPrecision(3)} km`;
       document.getElementById('res-crater-h').textContent = `${(craterDiameterKm / 10).toPrecision(2)} km`;
-      document.getElementById('res-richter').textContent = richterMag.toFixed(2); // <-- Add this line
+      document.getElementById('res-richter').textContent = richterMag.toFixed(2);
 
       const severity = megatonsTnt > 1000 ? 'PLANETARY' : megatonsTnt > 10 ? 'REGIONAL' : 'LOCAL';
       document.getElementById('res-severity').textContent = severity;
 
-      const affectedArea = Math.PI * Math.pow(craterDiameterKm * 15, 2);
       document.getElementById('res-area').textContent = `${affectedArea.toLocaleString(undefined, { maximumFractionDigits: 0 })} km²`;
 
-      let casualties = 0;
-      if (megatonsTnt > 1) casualties = Math.pow(megatonsTnt, 0.6) * 1000;
+      // Use ChatGPT's results
       document.getElementById('res-casualties').textContent =
-        casualties > 1e6
-          ? `${(casualties / 1e6).toPrecision(2)}M`
-          : casualties > 1e3
-          ? `${(casualties / 1e3).toPrecision(2)}K`
-          : casualties.toFixed(0);
-
-      let economicImpact = 0;
-      if (megatonsTnt > 1) economicImpact = Math.pow(megatonsTnt, 0.9) * 5;
+        chatGptResult.casualties !== undefined ? chatGptResult.casualties.toLocaleString() : "?";
       document.getElementById('res-eco-impact').textContent =
-        economicImpact > 1e3
-          ? `$${(economicImpact / 1e3).toPrecision(3)}T`
-          : `$${economicImpact.toPrecision(3)}B`;
+        chatGptResult.economic_impact_billion_usd !== undefined
+          ? `$${chatGptResult.economic_impact_billion_usd} B`
+          : "?";
+    
+      // Display mitigation strategies
+      const mitigationList = document.getElementById('res-mitigation');
+      mitigationList.innerHTML = ""; // Clear previous results
+      if (chatGptResult.briefing) {
+        // Display the briefing as a single formatted list item
+        const li = document.createElement('li');
+        li.style.whiteSpace = "pre-line"; // Preserve line breaks if present
+        li.textContent = chatGptResult.briefing.trim();
+        mitigationList.appendChild(li);
+      } else {
+        mitigationList.innerHTML = "<li>No briefing available.</li>";
+      }
+
       // Show the results container
       const resultsContainer = document.getElementById('results-container');
       resultsContainer.style.display = 'block';
@@ -381,19 +417,32 @@ let craterCircle, affectedCircle; // store circles so we can remove/redraw
         if (craterCircle) map.removeLayer(craterCircle);
         if (affectedCircle) map.removeLayer(affectedCircle);
 
-        // Leaflet expects radius in meters, so km → meters
-        craterCircle = L.circle(latlng, {
-          radius: (craterDiameterKm / 2) * 1000, // crater radius
-          color: 'red',
-          fillColor: '#f03',
-          fillOpacity: 0.3
+        // Crater: use Turf.js to create a geodesic circle polygon
+        const craterRadiusKm = craterDiameterKm / 2;
+        const turfCrater = turf.circle([latlng.lng, latlng.lat], craterRadiusKm, {
+          steps: 64,
+          units: 'kilometers'
+        });
+        craterCircle = L.geoJSON(turfCrater, {
+          style: {
+            color: 'red',
+            fillColor: '#f03',
+            fillOpacity: 0.3
+          }
         }).addTo(map);
 
-        affectedCircle = L.circle(latlng, {
-          radius: craterDiameterKm * 15 * 1000, // affected radius
-          color: 'orange',
-          fillColor: '#ff7800',
-          fillOpacity: 0.2
+        // Affected area: use Turf.js to create a geodesic circle polygon
+        const affectedRadiusKm = craterDiameterKm * 15;
+        const turfCircle = turf.circle([latlng.lng, latlng.lat], affectedRadiusKm, {
+          steps: 64,
+          units: 'kilometers'
+        });
+        affectedCircle = L.geoJSON(turfCircle, {
+          style: {
+            color: 'orange',
+            fillColor: '#ff7800',
+            fillOpacity: 0.2
+          }
         }).addTo(map);
 
         // zoom map to fit the largest circle
@@ -532,10 +581,9 @@ let craterCircle, affectedCircle; // store circles so we can remove/redraw
   return { kineticEnergyJoules, megatonsTnt , richterMag };
 }
 
-function estimateCraterDiameter(diameterKm, angle, velocityKps) {
+function estimateCraterDiameter(diameterKm, angle, velocityKps, K = 1.161) {
   const diameterM = diameterKm * 1000;
   const velocityMps = velocityKps * 1000;
-  const K = 1.161;
   const transientCraterDiameter =
     K *
     Math.pow(diameterM, 0.78) *
@@ -586,7 +634,7 @@ function estimateCraterDiameter(diameterKm, angle, velocityKps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "gpt-3.5-turbo",
+          model: "gpt-4o",
           messages: [{ role: "user", content: prompt }],
           max_tokens: 500,
           temperature: 0.7

@@ -6,6 +6,7 @@
   <title>Orbitscope - Impact Simulator</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
@@ -245,16 +246,63 @@
     }
 
     // ---------- Map & 3D Impact Scene ----------
-    function initMap(){
-      const container = document.getElementById('map'); if(!container) return;
-      container.innerHTML='';
-      const map = L.map(container).setView([20,0],2);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{ attribution:'&copy; CartoDB',subdomains: 'abcd', noWrap:false}).addTo(map);
-      const marker = L.marker([28.63,-106.06],{draggable:true}).addTo(map).bindPopup('Drag to select impact location.').openPopup();
-      const coordsDisplay = document.createElement('p'); coordsDisplay.style.marginTop='1rem'; container.parentNode.insertBefore(coordsDisplay,container.nextSibling);
-      const updateCoords = ()=>{ coordsDisplay.innerHTML=`<strong>Coordinates:</strong> ${marker.getLatLng().lat.toFixed(4)}, ${marker.getLatLng().lng.toFixed(4)}`; };
-      marker.on('drag', updateCoords); updateCoords();
-    }
+     // ---------- Map & 3D Impact Scene ----------
+      function initMap(){
+    const container = document.getElementById('map'); 
+    if(!container) return;
+    container.innerHTML='';
+
+    // Initialize Leaflet map
+    const map = L.map(container).setView([20,0],2);
+
+    // Add Carto Voyager tiles
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
+        attribution:'&copy; CartoDB',
+        subdomains: 'abcd',
+        noWrap:false
+    }).addTo(map);
+
+    // Add draggable marker
+    const marker = L.marker([28.63,-106.06],{draggable:true})
+        .addTo(map)
+        .bindPopup('Drag to select impact location.')
+        .openPopup();
+
+    // Display coordinates and land/water status
+    const coordsDisplay = document.createElement('p'); 
+    coordsDisplay.style.marginTop='1rem'; 
+    container.parentNode.insertBefore(coordsDisplay,container.nextSibling);
+
+    // Load world land polygons from GitHub
+    let landPolygons = null;
+    fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json')
+        .then(res => res.json())
+        .then(data => {
+            landPolygons = data;
+        })
+        .catch(err => console.error("Failed to load land polygons:", err));
+
+    // Function to update coordinates + land/water
+    const updateCoords = ()=>{
+        const latlng = marker.getLatLng();
+        let status = '';
+        if(landPolygons){
+            const point = turf.point([latlng.lng, latlng.lat]); // GeoJSON uses [lon, lat]
+            const onLand = landPolygons.features.some(f => turf.booleanPointInPolygon(point, f));
+            status = onLand ? ' ✅ Land' : ' 🌊 Water';
+        } else {
+            status = ' (loading land data...)';
+        }
+
+        coordsDisplay.innerHTML = `<strong>Coordinates:</strong> ${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)} ${status}`;
+    };
+
+    // Update on drag
+    marker.on('drag', updateCoords);
+
+    // Initial update
+    updateCoords();
+}
 
     // 3D impact scene — Earth centered, asteroid animates into collision
     function init3dImpactScene(asteroid, velocity_kps, angle){

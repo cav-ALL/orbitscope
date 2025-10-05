@@ -8,11 +8,13 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@700&family=Inter:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    :root{--bg-dark:#0a0c10;--bg-medium:#1a1e29;--bg-light:#2a2f3e;--border-color:#30363D;--text-primary:#e6edf3;--text-secondary:#848d97;--accent-blue:#388bfd;--accent-red:#da3633;--accent-yellow:#e3b341;--accent-teal:#39d39f;--font-main:'Inter',sans-serif}
+    :root{--bg-dark:#0a0c10;--bg-medium:#1a1e29;--bg-light:#2a2f3e;--border-color:#30363D;--text-primary:#e6edf3;--text-secondary:#848d97;--accent-blue:#388bfd;--accent-red:#da3633;--accent-yellow:#e3b341;--accent-teal:#39d39f;--font-main:'Inter',sans-serif;--font-display:'Exo 2',sans-serif;}
     *{box-sizing:border-box}
-    html {scroll-behavior: smooth;} /* Opcional: mejora el scroll en todo el sitio */
+    html {scroll-behavior: smooth;}
     body{font-family:var(--font-main);background-color:var(--bg-dark);color:var(--text-primary);margin:0}
     .main-container{padding:1rem 2rem}
     header{background-color:var(--bg-medium);border-bottom:1px solid var(--border-color);padding:0.75rem 2rem;display:flex;justify-content:space-between;align-items:center}
@@ -26,12 +28,15 @@
     h1{font-size:1.8rem;margin-top:2rem;color:var(--text-primary)}
     h1+p{color:var(--text-secondary);margin-bottom:2rem}
     .layout-grid{display:grid;grid-template-columns:350px 1fr;gap:1.5rem}
-    .card{background-color:var(--bg-medium);border:1px solid var(--border-color);border-radius:8px;padding:1.5rem}
+    .card{background-color:var(--bg-medium);border:1px solid var(--border-color);border-radius:8px;padding:1.5rem;position:relative;overflow:hidden;}
+    .card::after {content:'';position:absolute;bottom:0;left:0;right:0;height:4px;border-radius:0 0 8px 8px;opacity:0.7;}
+    .card.teal-shadow::after {background:var(--accent-teal);}
+    .card.yellow-shadow::after {background:var(--accent-yellow);}
     .card h2{font-size:1.2rem;margin-top:0;border-bottom:1px solid var(--border-color);padding-bottom:0.75rem;margin-bottom:1.5rem;color:var(--accent-teal)}
     .param-group{margin-bottom:1.5rem}
     .param-group label{display:block;margin-bottom:0.5rem;font-weight:700;font-size:0.9rem;color:var(--text-secondary)}
     .param-group select,.param-group input{width:100%;background-color:var(--bg-dark);border:1px solid var(--border-color);border-radius:6px;padding:0.75rem;color:var(--text-primary)}
-    .run-button{width:100%;background-color:var(--accent-red);color:white;border:none;padding:1rem;font-size:1.1rem;font-weight:700;border-radius:6px;cursor:pointer}
+    .run-button{width:100%;background-color:var(--accent-red);color:white;border:none;padding:1rem;font-size:1.1rem;font-weight:700;border-radius:6px;cursor:pointer;transition: background-color 0.2s;}.run-button:hover{background-color:#f85149;}
     .tabs{display:flex;gap:1rem;border-bottom:1px solid var(--border-color)}
     .tab-button{background:none;border:none;color:var(--text-secondary);padding:0.5rem 0;font-size:1rem;cursor:pointer;border-bottom:2px solid transparent}
     .tab-button.active{color:var(--text-primary);border-bottom-color:var(--accent-blue);font-weight:700}
@@ -39,27 +44,32 @@
     .tab-content.active{display:block}
     #map,#scene-3d-container{height:450px;border-radius:8px;background-color:#000}
     .modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:2rem 0}
-    .modal-card{background-color:var(--bg-medium);border:1px solid var(--border-color);padding:1.5rem;border-radius:8px}
+    .modal-card{background-color:var(--bg-light);border:1px solid var(--border-color);padding:1.5rem;border-radius:8px;transition: transform 0.2s, box-shadow 0.2s;}
+    .modal-card:hover {transform: translateY(-5px); box-shadow: 0 5px 15px rgba(0,0,0,0.2);}
     .modal-card h3{margin:0 0 0.5rem 0;font-size:1rem;color:var(--text-secondary);font-weight:400;text-transform:uppercase}
     .modal-card .value{font-size:2rem;font-weight:700}.modal-card .sub-value{font-size:0.9rem;color:var(--text-secondary)}
     #res-severity{background-color:var(--accent-yellow);color:var(--bg-dark);padding:0.2rem 0.8rem;border-radius:1rem;font-weight:700}
     .mitigation-list{list-style:none;padding:0;margin:1rem 0 0 0}
     .mitigation-list li{display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem}
     .mitigation-list span{background-color:var(--accent-blue);color:var(--bg-dark);border-radius:50%;width:20px;height:20px;min-width:20px;display:inline-flex;justify-content:center;align-items:center;font-size:0.8rem;font-weight:700}
-    #top-controls{background-color:var(--bg-medium);border:1px solid var(--border-color);border-radius:8px;padding:1rem;margin-bottom:2rem;display:flex;justify-content:center;align-items:center;gap:1rem;flex-wrap:wrap}
     .placeholder{grid-column:1/-1;text-align:center;color:var(--text-secondary);padding:4rem 0}
-    .animation-button{background-color:var(--accent-blue);color:white;border:none;padding:0.5rem 1rem;font-size:0.9rem;font-weight:700;border-radius:6px;cursor:pointer;position:absolute;top:20px;left:20px;z-index:1000}
-    .about-content{max-width:800px;margin:0 auto;line-height:1.7}
-    .about-content h2{color:var(--accent-teal)}
-    .about-content h3{color:var(--accent-blue)}
-    .about-content ul{list-style:disc;padding-left:20px}
-    #threat-list,#strategy-panel{list-style:none;padding:0;margin:0;max-height:500px;overflow-y:auto}
-    #threat-list li{background-color:var(--bg-medium);padding:1rem;border-radius:6px;margin-bottom:1rem;cursor:pointer;border-left:4px solid var(--accent-red)}
-    #threat-list li:hover,#threat-list li.selected{background-color:var(--bg-light)}
-    .defend-button{background-color:var(--accent-blue);width:100%;border:none;color:white;padding:0.75rem;border-radius:6px;font-weight:700;cursor:pointer;margin-top:1rem}
-    .tooltip{position:relative;display:inline-block}.tooltip .tooltiptext{visibility:hidden;width:220px;background-color:#555;color:#fff;text-align:center;border-radius:6px;padding:5px;position:absolute;z-index:1;bottom:125%;left:50%;margin-left:-110px;opacity:0;transition:opacity 0.3s}
-    .tooltip:hover .tooltiptext{visibility:visible;opacity:1}
-    @media(max-width:960px){.layout-grid,#defend-earth-layout{grid-template-columns:1fr}}
+    #top-controls{display:flex;align-items:center;justify-content:center;gap:0.5rem;background-color:var(--bg-medium);padding:1rem;border-radius:12px;border:1px solid var(--border-color);margin-bottom:2rem;flex-wrap:wrap;}
+    .control-group{display:flex;align-items:center;gap:0.5rem;background-color:var(--bg-dark);padding:0.5rem 1rem;border-radius:8px;border:1px solid var(--border-color);}
+    .control-group label{font-weight:700;color:var(--text-secondary);font-size:0.9rem;font-family: var(--font-display);}
+    .control-group input[type="date"], .control-group input[type="number"]{background:none;border:none;color:var(--text-primary);padding:0.25rem;}
+    .control-group input[type="date"]::-webkit-calendar-picker-indicator {filter: invert(0.8);}
+    #fetch-button{background-color:var(--accent-blue);color:white;border:none;padding:0.75rem 1.5rem;font-size:0.9rem;font-weight:700;border-radius:8px;cursor:pointer;transition:background-color 0.2s;}
+    #fetch-button:hover{background-color:#509eff;}
+    .collapsible {margin-top:2rem; border:1px solid var(--border-color); border-radius:8px; background-color:var(--bg-medium);}
+    .collapsible-header {padding:1rem 1.5rem; cursor:pointer; font-size:1.2rem; font-weight:700; color:var(--accent-teal); display:flex; justify-content:space-between; align-items:center;}
+    .collapsible-header::after {content: '▼'; font-size:0.8rem; transition: transform 0.3s;}
+    .collapsible.open .collapsible-header::after {transform: rotate(180deg);}
+    .collapsible-content {padding:0 1.5rem; max-height:0; overflow:hidden; transition:max-height 0.3s ease-out, padding 0.3s ease-out;}
+    .collapsible.open .collapsible-content {max-height:500px; padding:1rem 1.5rem; line-height:1.7;}
+    .collapsible-content h3 {color: var(--accent-blue); margin-top:1.5rem; margin-bottom:0.5rem;}
+    .collapsible-content ul {list-style-position: inside; padding-left: 0;}
+    .collapsible-content strong {color: var(--text-primary);}
+    @media(max-width:960px){.layout-grid{grid-template-columns:1fr}}
     @media(max-width:768px){nav{display:none}.main-container{padding:1rem}header{padding:0.75rem 1rem}.modal-grid{grid-template-columns:1fr}}
   </style>
 </head>
@@ -68,8 +78,6 @@
     <div class="logo">Orbitscope</div>
     <nav>
       <a data-page="simulation-page" class="active">Simulation</a>
-      <a data-page="mitigation">Mitigation strategies</a>
-      <a data-page="about-page">About</a>
     </nav>
     <div class="user-profile"><span>A</span></div>
   </header>
@@ -78,16 +86,24 @@
     <div id="simulation-page" class="page-content active">
       <h1>Impact Simulator</h1>
       <p>Model asteroid impact scenarios with real NASA data.</p>
+      
       <div id="top-controls">
-        <label for="start-date">Start Date:</label><input type="date" id="start-date">
-        <label for="days-range">Days:</label><input type="number" id="days-range" value="7" min="1" max="7" style="width:60px">
+        <div class="control-group">
+          <label for="start-date">Start Date</label>
+          <input type="date" id="start-date">
+        </div>
+        <div class="control-group">
+          <label for="days-range">Days</label>
+          <input type="number" id="days-range" value="7" min="1" max="7" style="width:60px">
+        </div>
         <button id="fetch-button">Search Asteroids</button>
       </div>
+      
       <div class="layout-grid" id="simulation-container">
         <p class="placeholder">Use the controls at the top to search for asteroids.</p>
       </div>
 
-      <div id="results-container" class="card" style="display: none; margin-top: 1.5rem;">
+      <div id="results-container" class="card yellow-shadow" style="display: none; margin-top: 1.5rem;">
         <h2><span style="color:var(--accent-yellow);vertical-align:middle;">⚠️</span> Impact Simulation Results</h2>
         <div class="modal-grid">
           <div class="modal-card"><h3>Impact Energy</h3><p class="value" id="res-energy">...</p><p class="sub-value">TNT Equivalent: <span id="res-tnt">...</span></p></div>
@@ -100,16 +116,26 @@
         <h3>Recommended Mitigation Strategies</h3>
         <ol id="res-mitigation" class="mitigation-list"></ol>
       </div>
-    </div>
 
-    <div id="about-page" class="page-content">
-      <div class="about-content">
-        <h2>Sobre Orbitscope</h2>
-        <p>Simulador educativo y lúdico para entender impactos. Los datos provienen de la API pública de la NASA cuando está disponible.</p>
-        <h3>Cómo usar</h3>
-        <ul>
-          <li>En "Simulation" busca NEOs (Near-Earth Objects), selecciona uno y ejecuta la simulación.</li>
-        </ul>
+      <div class="collapsible" id="about-section">
+        <div class="collapsible-header">About Orbitscope</div>
+        <div class="collapsible-content">
+            <h3>Purpose</h3>
+            <p>Orbitscope is an educational tool designed to visualize and understand the potential effects of asteroid impacts. It provides a user-friendly interface to explore scientific data and learn about the physics of celestial collisions in a simplified and accessible manner.</p>
+            
+            <h3>Data Source and Calculations</h3>
+            <p>All data regarding Near-Earth Objects (NEOs), including their size, velocity, and trajectory, is sourced in real-time from <strong>NASA's NEO Web Service API</strong>. The impact calculations for energy release and crater size are based on established scientific formulas, simplified for this educational context.</p>
+
+            <h3>Technology Used</h3>
+            <ul>
+                <li><strong>Maps:</strong> Interactive 2D maps are rendered using the <strong>Leaflet.js</strong> library.</li>
+                <li><strong>3D Visualization:</strong> The 3D impact animations are created with <strong>Three.js</strong>.</li>
+                <li><strong>Backend:</strong> The server-side logic and communication with the NASA API are handled by a <strong>Flask</strong> application.</li>
+            </ul>
+
+            <h3>Disclaimer</h3>
+            <p>This simulator is for educational and informational purposes only. The impact locations are randomly generated for visualization and are not predictive. The results are estimations and should <strong>not</strong> be used for real-world threat assessment or emergency planning.</p>
+        </div>
       </div>
     </div>
   </main>
@@ -129,14 +155,20 @@
     startDateInput.value = new Date().toISOString().split('T')[0];
     document.querySelectorAll('nav a').forEach(link => link.addEventListener('click', navClick));
     fetchButton.addEventListener('click', () => fetchAsteroidData(startDateInput.value, daysRangeInput.value));
+    document.getElementById('about-section').addEventListener('click', (e) => {
+        if (e.target.classList.contains('collapsible-header')) {
+            e.currentTarget.classList.toggle('open');
+        }
+    });
     
     // Navigation
     function navClick(e){
       const pageId = e.target.dataset.page;
       if(!pageId) return;
-      document.querySelectorAll('.page-content').forEach(p=>p.classList.remove('active'));
-      document.getElementById(pageId).classList.add('active');
-      document.querySelectorAll('nav a').forEach(l=>l.classList.remove('active'));
+      document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
+      const page = document.getElementById(pageId);
+      if(page) page.classList.add('active');
+      document.querySelectorAll('nav a').forEach(l => l.classList.remove('active'));
       e.target.classList.add('active');
     }
 
@@ -144,13 +176,13 @@
     async function fetchAsteroidData(startDate, days){
       const container = document.getElementById('simulation-container');
       const resultsContainer = document.getElementById('results-container');
-      if (resultsContainer) resultsContainer.style.display = 'none'; // Hide previous results
+      if (resultsContainer) resultsContainer.style.display = 'none';
       container.innerHTML=`<p class="placeholder">Loading data from NASA...</p>`;
       try{
         const res = await fetch(`${API_BASE}/neos?start_date=${startDate}&days=${days}`);
         if(!res.ok) throw new Error('Server error');
         fetchedAsteroids = await res.json();
-        currentAsteroid = fetchedAsteroids.length>0?fetchedAsteroids[0]:null;
+        currentAsteroid = fetchedAsteroids.length > 0 ? fetchedAsteroids[0] : null;
         if(document.getElementById('simulation-page').classList.contains('active')) displaySimulationLayout();
       }catch(err){
         console.error(err);
@@ -163,12 +195,12 @@
       const simulationContainer = document.getElementById('simulation-container');
       if(!currentAsteroid){ simulationContainer.innerHTML=`<p class="placeholder">No asteroids found.</p>`; return; }
       simulationContainer.innerHTML = `
-        <div class="card">
+        <div class="card teal-shadow">
           <h2>Simulation Parameters</h2>
           <div class="param-group">
             <label for="asteroid-select-sim">Select Asteroid</label>
             <select id="asteroid-select-sim"></select>
-            <div id="asteroid-info"></div>
+            <div id="asteroid-info" style="margin-top:1rem; font-size:0.9rem; color:var(--text-secondary);"></div>
           </div>
           <div class="param-group">
             <label>Impact Angle (<span id="angle-value">45</span>°)</label>
@@ -180,7 +212,7 @@
           </div>
           <button class="run-button" id="run-simulation-btn">RUN IMPACT SIMULATION</button>
         </div>
-        <div class="card">
+        <div class="card teal-shadow">
           <h2>Impact Visualization</h2>
           <div class="tabs">
             <button class="tab-button active" data-tab="tab-2d">2D Map</button>
@@ -204,8 +236,6 @@
       const angle = parseFloat(document.getElementById('angle-slider').value);
       const velocity = parseFloat(document.getElementById('velocity-slider').value);
       const diameter_m = currentAsteroid.diameter_km * 1000;
-
-      // Energy calculation (same base as backend to be consistent)
       const m = (4/3) * Math.PI * Math.pow(diameter_m/2,3) * 2000;
       const e = 0.5 * m * Math.pow(velocity*1000,2) * Math.sin(angle * Math.PI/180);
       const tnt_kilotons = e / 4.184e12;
@@ -215,108 +245,74 @@
       document.getElementById('res-tnt').textContent = `${(tnt_kilotons/1e6).toPrecision(3)} Gt`;
       document.getElementById('res-crater-d').textContent = `${crater_km.toPrecision(3)} km`;
       document.getElementById('res-crater-h').textContent = `${(crater_km/10).toPrecision(2)} km`;
-
       const severity = tnt_kilotons > 1e9 ? 'PLANETARY' : tnt_kilotons > 1e6 ? 'REGIONAL' : 'LOCAL';
       document.getElementById('res-severity').textContent = severity;
       const affectedArea = Math.PI * Math.pow(crater_km * 15, 2);
       document.getElementById('res-area').textContent = `${affectedArea.toLocaleString(undefined,{maximumFractionDigits:0})} km²`;
-
-      // casualties & econ (simplified)
       let casualties = 0;
       if(tnt_kilotons > 1000) casualties = Math.pow(tnt_kilotons,0.6)*1000;
       document.getElementById('res-casualties').textContent = casualties>1000000?`${(casualties/1000000).toPrecision(2)}M`:casualties>1000?`${(casualties/1000).toPrecision(2)}K`:casualties.toFixed(0);
       let ecoImpact = 0;
       if(tnt_kilotons > 1000) ecoImpact = Math.pow(tnt_kilotons,0.9)*5;
       document.getElementById('res-eco-impact').textContent = ecoImpact>1000?`$${(ecoImpact/1000).toPrecision(3)}T`:`$${ecoImpact.toPrecision(3)}B`;
-
       const mitigationList = document.getElementById('res-mitigation'); mitigationList.innerHTML='';
       const strategies = ["Immediate evacuation of impact zone","Activate national emergency protocols","Deploy search and rescue operations","Establish temporary shelters and supply chains","Monitor for atmospheric changes and acid rain","Coordinate with international space agencies","Issue tsunami warnings for coastal areas","Global coordination for long-term climate monitoring"];
       strategies.forEach((s,i)=>{const li=document.createElement('li'); li.innerHTML=`<span>${i+1}</span>${s}`; mitigationList.appendChild(li);});
-
-      // center 3D view on impact and animate asteroid collision
       init3dImpactScene(currentAsteroid, velocity, angle);
-
-      // Show results container
       const resultsContainer = document.getElementById('results-container');
       resultsContainer.style.display = 'block';
-      
-      // Scroll to the results container
       resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-
-    // ---------- Map & 3D Impact Scene ----------
+    
     function initMap(){
       const container = document.getElementById('map'); if(!container) return;
       container.innerHTML='';
       const map = L.map(container).setView([20,0],2);
       L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{ attribution:'&copy; CartoDB',subdomains: 'abcd', noWrap:false}).addTo(map);
       const marker = L.marker([28.63,-106.06],{draggable:true}).addTo(map).bindPopup('Drag to select impact location.').openPopup();
-      const coordsDisplay = document.createElement('p'); coordsDisplay.style.marginTop='1rem'; container.parentNode.insertBefore(coordsDisplay,container.nextSibling);
-      const updateCoords = ()=>{ coordsDisplay.innerHTML=`<strong>Coordinates:</strong> ${marker.getLatLng().lat.toFixed(4)}, ${marker.getLatLng().lng.toFixed(4)}`; };
+      const coordsDisplay = document.createElement('p'); coordsDisplay.style.cssText='margin-top:1rem; text-align:center; color: var(--text-secondary);'; container.parentNode.insertBefore(coordsDisplay,container.nextSibling);
+      const updateCoords = ()=>{ coordsDisplay.innerHTML=`<strong>Impact Coordinates:</strong> ${marker.getLatLng().lat.toFixed(4)}, ${marker.getLatLng().lng.toFixed(4)}`; };
       marker.on('drag', updateCoords); updateCoords();
     }
 
-    // 3D impact scene — Earth centered, asteroid animates into collision
     function init3dImpactScene(asteroid, velocity_kps, angle){
       const container = document.getElementById('scene-3d-container'); if(!container) return;
       if(window.impactAnim) cancelAnimationFrame(window.impactAnim);
       container.innerHTML='';
-
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(50, container.clientWidth/container.clientHeight, 0.1, 2000);
       const renderer = new THREE.WebGLRenderer({antialias:true}); renderer.setSize(container.clientWidth, container.clientHeight); container.appendChild(renderer.domElement);
       const controls = new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping=true; controls.dampingFactor=0.05;
-
-      // Lighting
       scene.add(new THREE.AmbientLight(0x666666));
       const light = new THREE.DirectionalLight(0xffffff,1); light.position.set(10,10,10); scene.add(light);
-
-      // Earth (center)
       const earthGeo = new THREE.SphereGeometry(5,64,64);
       const earthMat = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('https://eoimages.gsfc.nasa.gov/images/imagerecords/73000/73580/world.topo.bathy.200401.3x5400x2700.jpg')});
       const earth = new THREE.Mesh(earthGeo, earthMat); scene.add(earth);
-
-      // simple atmosphere glow
-      const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(5.1,64,64), new THREE.MeshBasicMaterial({color:0x88caff,transparent:true,opacity:0.08})); scene.add(atmosphere);
-
-      // Asteroid — start far away along a vector, aim towards earth center
-      const asteroidSize = Math.max(0.15, asteroid.diameter_km * 0.3); // scale for visibility
+      scene.add(new THREE.Mesh(new THREE.SphereGeometry(5.1,64,64), new THREE.MeshBasicMaterial({color:0x88caff,transparent:true,opacity:0.08})));
+      const asteroidSize = Math.max(0.15, asteroid.diameter_km * 0.3);
       const asteroidMesh = new THREE.Mesh(new THREE.SphereGeometry(asteroidSize, 16, 16), new THREE.MeshPhongMaterial({color:0xffa500}));
-
-      // position asteroid at a distance based on miss_distance or a fallback
-      const startDist = Math.max(50, asteroid.miss_distance_km / 1000); // scaled
+      const startDist = Math.max(50, asteroid.miss_distance_km / 1000);
       asteroidMesh.position.set(startDist, startDist*0.2, -startDist);
       scene.add(asteroidMesh);
-
       camera.position.set(20,10,30);
       camera.lookAt(earth.position);
-
-      // create impact particles and explosion placeholder
       const explosionGroup = new THREE.Group(); scene.add(explosionGroup);
-
       let startTime = null;
-      const totalDuration = 4000; // ms
-
+      const totalDuration = 4000;
       function animate(time){
         window.impactAnim = requestAnimationFrame(animate);
         if(!startTime) startTime = time;
         const t = (time - startTime) / totalDuration;
-
-        // approach
         if(t < 0.95){
-          // move asteroid towards earth center — non-physical but visually clear
           asteroidMesh.position.lerp(earth.position, 0.01);
           asteroidMesh.scale.setScalar(1 + t*2);
         } else if(t >= 0.95 && t < 1.02){
-          // impact moment
-          // create a flash
           const flash = new THREE.Mesh(new THREE.SphereGeometry(1 + (t-0.95)*30, 12, 12), new THREE.MeshBasicMaterial({color:0xffdd88, transparent:true, opacity:0.9 - (t-0.95)*20}));
           flash.position.copy(earth.position);
           explosionGroup.add(flash);
           setTimeout(()=>{ if(flash.parent) explosionGroup.remove(flash); }, 500);
           asteroidMesh.visible = false;
         }
-
         controls.update(); renderer.render(scene, camera);
       }
       animate();

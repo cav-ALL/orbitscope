@@ -32,6 +32,8 @@
     .param-group{margin-bottom:1.5rem}
     .param-group label{display:block;margin-bottom:0.5rem;font-weight:700;font-size:0.9rem;color:var(--text-secondary)}
     .param-group select,.param-group input{width:100%;background-color:var(--bg-dark);border:1px solid var(--border-color);border-radius:6px;padding:0.75rem;color:var(--text-primary)}
+    .param-group select {cursor:pointer; transition: border-color 0.2s, background-color 0.2s;}
+    .param-group select:hover {border-color: var(--accent-blue); background-color: var(--bg-light);}
     .run-button{width:100%;background-color:var(--accent-red);color:white;border:none;padding:1rem;font-size:1.1rem;font-weight:700;border-radius:6px;cursor:pointer}
     .tabs{display:flex;gap:1rem;border-bottom:1px solid var(--border-color)}
     .tab-button{background:none;border:none;color:var(--text-secondary);padding:0.5rem 0;font-size:1rem;cursor:pointer;border-bottom:2px solid transparent}
@@ -48,6 +50,11 @@
     .mitigation-list li{display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem}
     .mitigation-list span{background-color:var(--accent-blue);color:var(--bg-dark);border-radius:50%;width:20px;height:20px;min-width:20px;display:inline-flex;justify-content:center;align-items:center;font-size:0.8rem;font-weight:700}
     #top-controls{background-color:var(--bg-medium);border:1px solid var(--border-color);border-radius:8px;padding:1rem;margin-bottom:2rem;display:flex;justify-content:center;align-items:center;gap:1rem;flex-wrap:wrap}
+    #top-controls input{background-color:var(--bg-dark);border:1px solid var(--border-color);border-radius:6px;padding:0.75rem;color:var(--text-primary)}
+    #fetch-button{background-color:var(--accent-blue);color:white;border:none;padding:0.75rem 1.5rem;font-weight:700;border-radius:6px;cursor:pointer;transition:background-color .2s}
+    #fetch-button:hover{background-color:#58a6ff}
+    .filter-button{width:100%;background-color:var(--accent-teal);color:var(--bg-dark);border:none;padding:1rem;font-size:1.1rem;font-weight:700;border-radius:6px;cursor:pointer;margin-top:1rem;transition:background-color .2s}
+    .filter-button:hover{background-color:#56d4a5}
     .placeholder{grid-column:1/-1;text-align:center;color:var(--text-secondary);padding:4rem 0}
     .animation-button{background-color:var(--accent-blue);color:white;border:none;padding:0.5rem 1rem;font-size:0.9rem;font-weight:700;border-radius:6px;cursor:pointer;position:absolute;top:20px;left:20px;z-index:1000}
     .about-content{max-width:800px;margin:0 auto;line-height:1.7}
@@ -80,7 +87,7 @@
       <p>Model asteroid impact scenarios with real NASA data.</p>
       <div id="top-controls">
         <label for="start-date">Start Date:</label><input type="date" id="start-date">
-        <label for="days-range">Days:</label><input type="number" id="days-range" value="7" min="1" max="7" style="width:60px">
+        <label for="days-range">Days:</label><input type="number" id="days-range" value="7" min="1" max="7" style="width:80px">
         <button id="fetch-button">Search Asteroids</button>
       </div>
       <div class="layout-grid" id="simulation-container">
@@ -117,7 +124,7 @@
   <script>
     // ---------- Config & State ----------
     const API_BASE = 'http://127.0.0.1:5000/api';
-    const NASA_API_KEY = '7navEoAK4Qcg1684pjGePLQ8chu0KI46CXcUaWB9';
+    const NASA_API_KEY = '7navEoAK4Qcg1684pjGePLQ8chu0KI46CXcUaWB9'; // Replace with your key if needed
     const NASA_NEO_API_URL = 'https://api.nasa.gov/neo/rest/v1/feed';
     let fetchedAsteroids = [];
     let currentAsteroid = null;
@@ -186,6 +193,10 @@
 
       const velocityKps = parseFloat(asteroid.close_approach_data[0].relative_velocity.kilometers_per_second);
       const missDistanceKm = parseFloat(asteroid.close_approach_data[0].miss_distance.kilometers);
+      
+      // Calculate potential energy and severity using default values for sorting purposes
+      const { megatonsTnt } = calculateImpactEnergy(diameterKm, 45, velocityKps);
+      const severity = megatonsTnt > 1000 ? 'PLANETARY' : megatonsTnt > 10 ? 'REGIONAL' : 'LOCAL';
 
       return {
         id: asteroid.id,
@@ -195,6 +206,8 @@
         miss_distance_km: missDistanceKm,
         is_potentially_hazardous: asteroid.is_potentially_hazardous_asteroid,
         close_approach_date: asteroid.close_approach_data[0].close_approach_date,
+        potential_energy_tnt: megatonsTnt,
+        potential_severity: severity,
       };
     }
 
@@ -222,6 +235,16 @@
             <input type="range" id="velocity-slider" min="10" max="70" value="${currentAsteroid.velocity_kps}">
           </div>
           <button class="run-button" id="run-simulation-btn">RUN IMPACT SIMULATION</button>
+          <button class="filter-button" id="filter-btn">FILTER ASTEROIDS</button>
+          <div class="param-group" id="filter-controls" style="display: none; margin-top: 1rem;">
+            <label for="sort-select">Sort by</label>
+            <select id="sort-select">
+                <option value="default">Default Order</option>
+                <option value="energy-desc">Impact Energy (High to Low)</option>
+                <option value="energy-asc">Impact Energy (Low to High)</option>
+                <option value="severity">Severity (High to Low)</option>
+            </select>
+          </div>
         </div>
         <div class="card">
           <h2>Impact Visualization</h2>
@@ -246,10 +269,52 @@
         currentAsteroid = fetchedAsteroids.find(a => a.id === asteroidSelectSim.value);
         updateAsteroidInfo();
       });
+      
+      // Setup for main simulation and new filter buttons
       document.getElementById('run-simulation-btn').addEventListener('click', runSimulation);
+      document.getElementById('filter-btn').addEventListener('click', () => {
+          const filterControls = document.getElementById('filter-controls');
+          filterControls.style.display = filterControls.style.display === 'none' ? 'block' : 'none';
+      });
+      document.getElementById('sort-select').addEventListener('change', sortAndRepopulateAsteroids);
+
       setupTabs();
       initMap();
       setupSimulatorSliders();
+    }
+    
+    function sortAndRepopulateAsteroids(event) {
+        const sortBy = event.target.value;
+        let sortedAsteroids = [...fetchedAsteroids]; // Create a mutable copy from the original list
+        const severityMap = { 'LOCAL': 1, 'REGIONAL': 2, 'PLANETARY': 3 };
+
+        if (sortBy === 'energy-desc') {
+            sortedAsteroids.sort((a, b) => b.potential_energy_tnt - a.potential_energy_tnt);
+        } else if (sortBy === 'energy-asc') {
+            sortedAsteroids.sort((a, b) => a.potential_energy_tnt - b.potential_energy_tnt);
+        } else if (sortBy === 'severity') {
+            // Sorts from most severe to least severe
+            sortedAsteroids.sort((a, b) => (severityMap[b.potential_severity] || 0) - (severityMap[a.potential_severity] || 0));
+        }
+        // 'default' case uses the already created copy of the original fetched array
+
+        const asteroidSelectSim = document.getElementById('asteroid-select-sim');
+        asteroidSelectSim.innerHTML = ''; // Clear existing options
+
+        sortedAsteroids.forEach(a => {
+            const opt = document.createElement('option');
+            opt.value = a.id;
+            opt.textContent = a.name;
+            asteroidSelectSim.appendChild(opt);
+        });
+
+        // Automatically select the NEW first asteroid in the sorted list and update the UI
+        if (sortedAsteroids.length > 0) {
+            const newTopAsteroid = sortedAsteroids[0];
+            asteroidSelectSim.value = newTopAsteroid.id;
+            currentAsteroid = newTopAsteroid;
+            updateAsteroidInfo(); // This will refresh the info panel and sliders
+        }
     }
 
 let map, marker;  // make them accessible outside initMap

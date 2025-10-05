@@ -16,25 +16,30 @@ app = Flask(__name__)
 CORS(app)
 
 # --- CONSTANTS ---
-ASTEROID_DENSITY_KG_M3 = 2000
-JOULES_TO_MEGATONS_TNT = 4.184e15
+AST_DENS = 2600
+EARTH_DENS = 5513
+J_MGT = 4.184e15
 
 # --- IMPACT CALCULATIONS ---
-def calculate_impact_energy(diameter_meters, velocity_kps):
-    velocity_mps = velocity_kps * 1000.0
-    radius = diameter_meters / 2.0
+def calculate_impact_energy(ast_diam, theta, velocity):
+    velocity_mps = velocity * 1000.0
+    radius = ast_diam / 2.0
     volume = (4.0 / 3.0) * math.pi * (radius ** 3)
-    mass_kg = volume * ASTEROID_DENSITY_KG_M3
-    kinetic_energy_joules = 0.5 * mass_kg * (velocity_mps ** 2)
-    megatons_tnt = kinetic_energy_joules / JOULES_TO_MEGATONS_TNT
+    mass_kg = volume * AST_DENS
+    kinetic_energy_joules = 0.5 * mass_kg * (velocity_mps ** 2) * math.sin(math.radians(theta))
+    megatons_tnt = kinetic_energy_joules / J_MGT
     return kinetic_energy_joules, megatons_tnt
 
-def estimate_crater_diameter(energy_in_joules):
-    target_density_kg_m3 = 2600
-    K1 = 0.1
-    crater_diameter_meters = K1 * (energy_in_joules / target_density_kg_m3) ** (1.0 / 3.4)
-    return crater_diameter_meters
+def estimate_crater_diameter(ast_diam, theta, velocity):
+    K = 1.161
+    vel_ms = velocity*1000
+    transCrat_diam = K * (ast_diam**.78) * ((AST_DENS / EARTH_DENS) ** (1/3)) * (vel_ms**0.44) * (9.81**-0.22) * ((math.sin(math.radians(theta)))**(1/3))
+    simp_diam = transCrat_diam*1.25
+    return simp_diam
 
+def estimate_earthquake_magnitude(energy_in_joules):
+    richter_magnitude = (math.log10(energy_in_joules)-4.4)/1.5
+    return richter_magnitude
 # --- GENERATE PSEUDO GEO COORDS ---
 def generate_fake_coordinates(asteroid_id, miss_distance_km):
     """Generate reproducible pseudo-random lat/lon for each asteroid using a stable hash seed."""
@@ -56,7 +61,7 @@ def generate_fake_coordinates(asteroid_id, miss_distance_km):
     return lat, lon
 
 # --- FETCH AND PROCESS DATA ---
-def fetch_and_process_feed_data(start_date, end_date):
+def fetch_and_process_feed_data(start_date, end_date, angle=45, velocity=None):
     params = {'api_key': NASA_API_KEY, 'start_date': start_date, 'end_date': end_date}
     try:
         response = requests.get(NASA_NEO_API_URL, params=params, timeout=15)
@@ -87,12 +92,12 @@ def fetch_and_process_feed_data(start_date, end_date):
             # velocity parsing (defensive: remove commas)
             try:
                 vel_str = cad['relative_velocity'].get('kilometers_per_second', '')
-                velocity_kps = float(vel_str.replace(',', ''))
+                velocity_kps = float(vel_str.replace(',', '')) if velocity is None else velocity
             except Exception:
                 velocity_kps = 25.0  # default fallback velocity
 
-            ke_joules, ke_megatons = calculate_impact_energy(diameter_m, velocity_kps)
-            crater_m = estimate_crater_diameter(ke_joules)
+            ke_joules, ke_megatons = calculate_impact_energy(diameter_m, angle,velocity_kps)
+            crater_m = estimate_crater_diameter(diameter_m, angle,velocity_kps)
 
             # miss distance parsing
             miss_distance_km = None
@@ -113,12 +118,13 @@ def fetch_and_process_feed_data(start_date, end_date):
                 'close_approach_date': cad.get('close_approach_date_full') or cad.get('close_approach_date'),
                 'velocity_kps': velocity_kps,
                 'miss_distance_km': miss_distance_km,
+                'impact_energy': ke_joules,
                 'impact_megatons_tnt': ke_megatons,
+                'impact_eathquake_magnitude': crater_m,
                 'crater_kilometers': crater_m / 1000.0,
                 'lat': lat,
                 'lon': lon
             })
-
         print(f"Successfully fetched and processed {len(processed_neos)} asteroids.")
         return processed_neos
 
@@ -130,7 +136,6 @@ def fetch_and_process_feed_data(start_date, end_date):
 @app.route('/api/neos')
 def get_neos_endpoint():
     start_date_str = request.args.get('start_date', default=date.today().strftime('%Y-%m-%d'))
-    # ensure days is integer and within 1..7
     try:
         days_in_range = int(request.args.get('days', 7))
     except Exception:
@@ -138,7 +143,6 @@ def get_neos_endpoint():
     days_in_range = max(1, min(days_in_range, 7))
 
     start_date_obj = date.fromisoformat(start_date_str)
-    # NASA feed is inclusive, so subtract 1 day when building end_date
     end_date_obj = start_date_obj + timedelta(days=(days_in_range - 1))
     end_date_str = end_date_obj.strftime('%Y-%m-%d')
 

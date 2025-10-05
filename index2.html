@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AstroImpact - Impact Simulator</title>
+  <title>Orbitscope - Impact Simulator</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -12,6 +12,7 @@
   <style>
     :root{--bg-dark:#0a0c10;--bg-medium:#1a1e29;--bg-light:#2a2f3e;--border-color:#30363D;--text-primary:#e6edf3;--text-secondary:#848d97;--accent-blue:#388bfd;--accent-red:#da3633;--accent-yellow:#e3b341;--accent-teal:#39d39f;--font-main:'Inter',sans-serif}
     *{box-sizing:border-box}
+    html {scroll-behavior: smooth;} /* Opcional: mejora el scroll en todo el sitio */
     body{font-family:var(--font-main);background-color:var(--bg-dark);color:var(--text-primary);margin:0}
     .main-container{padding:1rem 2rem}
     header{background-color:var(--bg-medium);border-bottom:1px solid var(--border-color);padding:0.75rem 2rem;display:flex;justify-content:space-between;align-items:center}
@@ -37,9 +38,6 @@
     .tab-content{display:none;padding-top:1rem;position:relative}
     .tab-content.active{display:block}
     #map,#scene-3d-container{height:450px;border-radius:8px;background-color:#000}
-    .modal{display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;background-color:rgba(0,0,0,0.8);justify-content:center;align-items:center}
-    .modal-content{font-family:var(--font-main);background-color:#21262D;color:var(--text-primary);padding:2rem;border:1px solid var(--border-color);width:90%;max-width:800px;border-radius:8px;position:relative}
-    .modal-header h2{margin:0;font-weight:400}.modal-header .close-button{font-size:2rem;color:var(--text-secondary);cursor:pointer;position:absolute;top:1rem;right:1.5rem}
     .modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:2rem 0}
     .modal-card{background-color:var(--bg-medium);border:1px solid var(--border-color);padding:1.5rem;border-radius:8px}
     .modal-card h3{margin:0 0 0.5rem 0;font-size:1rem;color:var(--text-secondary);font-weight:400;text-transform:uppercase}
@@ -67,7 +65,7 @@
 </head>
 <body>
   <header>
-    <div class="logo">AstroImpact</div>
+    <div class="logo">Orbitscope</div>
     <nav>
       <a data-page="simulation-page" class="active">Simulation</a>
       <a data-page="mitigation">Mitigation strategies</a>
@@ -77,7 +75,6 @@
   </header>
 
   <main class="main-container">
-    <!-- SIMULATION PAGE -->
     <div id="simulation-page" class="page-content active">
       <h1>Impact Simulator</h1>
       <p>Model asteroid impact scenarios with real NASA data.</p>
@@ -89,12 +86,22 @@
       <div class="layout-grid" id="simulation-container">
         <p class="placeholder">Use the controls at the top to search for asteroids.</p>
       </div>
+
+      <div id="results-container" class="card" style="display: none; margin-top: 1.5rem;">
+        <h2><span style="color:var(--accent-yellow);vertical-align:middle;">⚠️</span> Impact Simulation Results</h2>
+        <div class="modal-grid">
+          <div class="modal-card"><h3>Impact Energy</h3><p class="value" id="res-energy">...</p><p class="sub-value">TNT Equivalent: <span id="res-tnt">...</span></p></div>
+          <div class="modal-card"><h3>Crater Diameter</h3><p class="value" id="res-crater-d">...</p><p class="sub-value">Depth: <span id="res-crater-h">...</span></p></div>
+          <div class="modal-card"><h3>Impact Severity</h3><p><span id="res-severity">...</span></p></div>
+          <div class="modal-card"><h3>Affected Area</h3><p class="value" id="res-area">...</p></div>
+          <div class="modal-card"><h3>Estimated Casualties</h3><p class="value" id="res-casualties">...</p></div>
+          <div class="modal-card"><h3>Economic Impact</h3><p class="value" id="res-eco-impact">...</p></div>
+        </div>
+        <h3>Recommended Mitigation Strategies</h3>
+        <ol id="res-mitigation" class="mitigation-list"></ol>
+      </div>
     </div>
 
-
-
-
-    <!-- ABOUT PAGE -->
     <div id="about-page" class="page-content">
       <div class="about-content">
         <h2>Sobre AstroImpact</h2>
@@ -107,25 +114,6 @@
     </div>
   </main>
 
-  <!-- Modal for Simulation Results -->
-  <div id="results-modal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2><span style="color:var(--accent-yellow);vertical-align:middle;">⚠️</span> Impact Simulation Results</h2>
-        <span class="close-button">&times;</span>
-      </div>
-      <div class="modal-grid">
-        <div class="modal-card"><h3>Impact Energy</h3><p class="value" id="res-energy">...</p><p class="sub-value">TNT Equivalent: <span id="res-tnt">...</span></p></div>
-        <div class="modal-card"><h3>Crater Diameter</h3><p class="value" id="res-crater-d">...</p><p class="sub-value">Depth: <span id="res-crater-h">...</span></p></div>
-        <div class="modal-card"><h3>Impact Severity</h3><p><span id="res-severity">...</span></p></div>
-        <div class="modal-card"><h3>Affected Area</h3><p class="value" id="res-area">...</p></div>
-        <div class="modal-card"><h3>Estimated Casualties</h3><p class="value" id="res-casualties">...</p></div>
-        <div class="modal-card"><h3>Economic Impact</h3><p class="value" id="res-eco-impact">...</p></div>
-      </div>
-      <h3>Recommended Mitigation Strategies</h3>
-      <ol id="res-mitigation" class="mitigation-list"></ol>
-    </div>
-  </div>
   <script>
     // ---------- Config & State ----------
     const API_BASE = 'http://127.0.0.1:5000/api';
@@ -133,7 +121,6 @@
     let currentAsteroid = null;
 
     // UI elements
-    const resultsModal = document.getElementById('results-modal');
     const startDateInput = document.getElementById('start-date');
     const daysRangeInput = document.getElementById('days-range');
     const fetchButton = document.getElementById('fetch-button');
@@ -142,9 +129,7 @@
     startDateInput.value = new Date().toISOString().split('T')[0];
     document.querySelectorAll('nav a').forEach(link => link.addEventListener('click', navClick));
     fetchButton.addEventListener('click', () => fetchAsteroidData(startDateInput.value, daysRangeInput.value));
-    resultsModal.querySelector('.close-button').addEventListener('click', ()=> resultsModal.style.display='none');
-    window.addEventListener('click',(ev)=>{ if(ev.target==resultsModal) resultsModal.style.display='none'; });
-
+    
     // Navigation
     function navClick(e){
       const pageId = e.target.dataset.page;
@@ -153,12 +138,13 @@
       document.getElementById(pageId).classList.add('active');
       document.querySelectorAll('nav a').forEach(l=>l.classList.remove('active'));
       e.target.classList.add('active');
-      
     }
 
     // Fetch from Flask backend
     async function fetchAsteroidData(startDate, days){
       const container = document.getElementById('simulation-container');
+      const resultsContainer = document.getElementById('results-container');
+      if (resultsContainer) resultsContainer.style.display = 'none'; // Hide previous results
       container.innerHTML=`<p class="placeholder">Loading data from NASA...</p>`;
       try{
         const res = await fetch(`${API_BASE}/neos?start_date=${startDate}&days=${days}`);
@@ -250,17 +236,20 @@
       // center 3D view on impact and animate asteroid collision
       init3dImpactScene(currentAsteroid, velocity, angle);
 
-      resultsModal.style.display='flex';
+      // Show results container
+      const resultsContainer = document.getElementById('results-container');
+      resultsContainer.style.display = 'block';
+      
+      // Scroll to the results container
+      resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-
-
 
     // ---------- Map & 3D Impact Scene ----------
     function initMap(){
       const container = document.getElementById('map'); if(!container) return;
       container.innerHTML='';
       const map = L.map(container).setView([20,0],2);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{ attribution:'&copy; CartoDB',subdomains: 'abcd',subdomains: 'abcd', noWrap:false}).addTo(map);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{ attribution:'&copy; CartoDB',subdomains: 'abcd', noWrap:false}).addTo(map);
       const marker = L.marker([28.63,-106.06],{draggable:true}).addTo(map).bindPopup('Drag to select impact location.').openPopup();
       const coordsDisplay = document.createElement('p'); coordsDisplay.style.marginTop='1rem'; container.parentNode.insertBefore(coordsDisplay,container.nextSibling);
       const updateCoords = ()=>{ coordsDisplay.innerHTML=`<strong>Coordinates:</strong> ${marker.getLatLng().lat.toFixed(4)}, ${marker.getLatLng().lng.toFixed(4)}`; };
@@ -332,9 +321,7 @@
       }
       animate();
     }
-
-    // ---------- 
-
+    
     // ---------- Helpers ----------
     function setupTabs(){ document.querySelectorAll('.tab-button').forEach(button=>{ button.addEventListener('click', ()=>{ document.querySelectorAll('.tab-button, .tab-content').forEach(el=>el.classList.remove('active')); button.classList.add('active'); document.getElementById(button.dataset.tab).classList.add('active'); if(button.dataset.tab==='tab-2d') initMap(); if(button.dataset.tab==='tab-3d') init3dScene(); }); }); }
     function setupSimulatorSliders(){ const angleSlider=document.getElementById('angle-slider'); const velocitySlider=document.getElementById('velocity-slider'); const angleValue=document.getElementById('angle-value'); const velocityValue=document.getElementById('velocity-value'); if(angleSlider) angleSlider.addEventListener('input', ()=>angleValue.textContent=angleSlider.value); if(velocitySlider) velocitySlider.addEventListener('input', ()=>velocityValue.textContent=parseFloat(velocitySlider.value).toFixed(2)); }
@@ -342,7 +329,6 @@
     function calculateImpactEnergy(d,v,angle){ const m=(4/3)*Math.PI*Math.pow(d/2,3)*2000; const e=0.5*m*Math.pow(v*1000,2); return e*Math.sin(angle*Math.PI/180); }
     function estimateCraterDiameter(e){ const target_density=2600; const K1=0.1; return K1*Math.pow(e/target_density,1/3.4); }
 
-   
     // initial fetch so the UI has something locally when loaded
     fetchAsteroidData(startDateInput.value, daysRangeInput.value);
   </script>

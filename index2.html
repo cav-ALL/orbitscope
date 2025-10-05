@@ -6,7 +6,6 @@
   <title>Orbitscope - Impact Simulator</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
@@ -142,27 +141,31 @@
     }
 
     // Fetch from Flask backend
-    async function fetchAsteroidData(startDate, days){
+    async function fetchAsteroidData(startDate, days) {
       const container = document.getElementById('simulation-container');
       const resultsContainer = document.getElementById('results-container');
       if (resultsContainer) resultsContainer.style.display = 'none'; // Hide previous results
-      container.innerHTML=`<p class="placeholder">Loading data from NASA...</p>`;
+      container.innerHTML = `<p class="placeholder">Loading data from NASA...</p>`;
       try{
         const res = await fetch(`${API_BASE}/neos?start_date=${startDate}&days=${days}`);
-        if(!res.ok) throw new Error('Server error');
+        if (!res.ok) throw new Error('Server error');
         fetchedAsteroids = await res.json();
-        currentAsteroid = fetchedAsteroids.length>0?fetchedAsteroids[0]:null;
-        if(document.getElementById('simulation-page').classList.contains('active')) displaySimulationLayout();
-      }catch(err){
-        console.error(err);
-        container.innerHTML=`<p class="placeholder" style="color:var(--accent-red)">Error loading data.</p>`;
+        currentAsteroid = fetchedAsteroids.length > 0 ? fetchedAsteroids[0] : null;
+        if (document.getElementById('simulation-page').classList.contains('active')) displaySimulationLayout();
+      }catch (err) {
+        console.error('Error fetching asteroid data:', err);
+        container.innerHTML = `<p class="placeholder" style="color:var(--accent-red)">Error loading data.</p>`;
+      
       }
     }
 
     // ---------- Simulation Page ----------
-    function displaySimulationLayout(){
+    function displaySimulationLayout() {
       const simulationContainer = document.getElementById('simulation-container');
-      if(!currentAsteroid){ simulationContainer.innerHTML=`<p class="placeholder">No asteroids found.</p>`; return; }
+      if (!currentAsteroid) {
+        simulationContainer.innerHTML = `<p class="placeholder">No asteroids found.</p>`;
+        return;
+      }
       simulationContainer.innerHTML = `
         <div class="card">
           <h2>Simulation Parameters</h2>
@@ -192,15 +195,26 @@
       `;
 
       const asteroidSelectSim = document.getElementById('asteroid-select-sim');
-      fetchedAsteroids.forEach(a=>{ const opt=document.createElement('option'); opt.value=a.id; opt.textContent=a.name; asteroidSelectSim.appendChild(opt); });
-      asteroidSelectSim.value=currentAsteroid.id;
+      fetchedAsteroids.forEach(a => {
+        const opt = document.createElement('option');
+        opt.value = a.id;
+        opt.textContent = a.name;
+        asteroidSelectSim.appendChild(opt);
+      });
+      asteroidSelectSim.value = currentAsteroid.id;
       updateAsteroidInfo();
-      asteroidSelectSim.addEventListener('change', ()=> { currentAsteroid = fetchedAsteroids.find(a=>a.id===asteroidSelectSim.value); updateAsteroidInfo(); });
+      asteroidSelectSim.addEventListener('change', () => {
+        currentAsteroid = fetchedAsteroids.find(a => a.id === asteroidSelectSim.value);
+        updateAsteroidInfo();
+      });
       document.getElementById('run-simulation-btn').addEventListener('click', runSimulation);
-      setupTabs(); initMap(); setupSimulatorSliders();
+      setupTabs();
+      initMap();
+      setupSimulatorSliders();
     }
 
     function runSimulation(){
+    
       const angle = parseFloat(document.getElementById('angle-slider').value);
       const velocity = parseFloat(document.getElementById('velocity-slider').value);
       const diameter_m = currentAsteroid.diameter_km * 1000;
@@ -236,52 +250,29 @@
       // center 3D view on impact and animate asteroid collision
       init3dImpactScene(currentAsteroid, velocity, angle);
 
-      // Show results container
+      // Show the results container
       const resultsContainer = document.getElementById('results-container');
       resultsContainer.style.display = 'block';
-      
+
       // Scroll to the results container
       resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-
     // ---------- Map & 3D Impact Scene ----------
-     // ---------- Map & 3D Impact Scene ----------
-      function initMap(){
-    const container = document.getElementById('map'); 
-    if(!container) return;
-    container.innerHTML='';
-
-    // Initialize Leaflet map
-    const map = L.map(container).setView([20,0],2);
-
-    // Add Carto Voyager tiles
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
-        attribution:'&copy; CartoDB',
-        subdomains: 'abcd',
-        noWrap:false
-    }).addTo(map);
-
-    // Add draggable marker
-    const marker = L.marker([28.63,-106.06],{draggable:true})
-        .addTo(map)
-        .bindPopup('Drag to select impact location.')
-        .openPopup();
-
-    // Display coordinates and land/water status
-    const coordsDisplay = document.createElement('p'); 
-    coordsDisplay.style.marginTop='1rem'; 
-    container.parentNode.insertBefore(coordsDisplay,container.nextSibling);
-
-    // Load world land polygons from GitHub
-    let landPolygons = null;
+    function initMap(){
+      const container = document.getElementById('map'); if(!container) return;
+      container.innerHTML='';
+      const map = L.map(container).setView([20,0],2);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{ attribution:'&copy; CartoDB',subdomains: 'abcd', noWrap:false}).addTo(map);
+      const marker = L.marker([28.63,-106.06],{draggable:true}).addTo(map).bindPopup('Drag to select impact location.').openPopup();
+      const coordsDisplay = document.createElement('p'); coordsDisplay.style.marginTop='1rem'; container.parentNode.insertBefore(coordsDisplay,container.nextSibling);
+      let landPolygons = null;
     fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json')
         .then(res => res.json())
         .then(data => {
             landPolygons = data;
         })
         .catch(err => console.error("Failed to load land polygons:", err));
-
-    // Function to update coordinates + land/water
+      // Function to update coordinates + land/water
     const updateCoords = ()=>{
         const latlng = marker.getLatLng();
         let status = '';
@@ -292,16 +283,11 @@
         } else {
             status = ' (loading land data...)';
         }
-
-        coordsDisplay.innerHTML = `<strong>Coordinates:</strong> ${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)} ${status}`;
-    };
-
-    // Update on drag
-    marker.on('drag', updateCoords);
-
-    // Initial update
-    updateCoords();
-}
+            coordsDisplay.innerHTML = `<strong>Coordinates:</strong> ${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)} ${status}`;
+      };
+      marker.on('drag', updateCoords); 
+      updateCoords();
+    }
 
     // 3D impact scene — Earth centered, asteroid animates into collision
     function init3dImpactScene(asteroid, velocity_kps, angle){
@@ -373,7 +359,7 @@
     function setupTabs(){ document.querySelectorAll('.tab-button').forEach(button=>{ button.addEventListener('click', ()=>{ document.querySelectorAll('.tab-button, .tab-content').forEach(el=>el.classList.remove('active')); button.classList.add('active'); document.getElementById(button.dataset.tab).classList.add('active'); if(button.dataset.tab==='tab-2d') initMap(); if(button.dataset.tab==='tab-3d') init3dScene(); }); }); }
     function setupSimulatorSliders(){ const angleSlider=document.getElementById('angle-slider'); const velocitySlider=document.getElementById('velocity-slider'); const angleValue=document.getElementById('angle-value'); const velocityValue=document.getElementById('velocity-value'); if(angleSlider) angleSlider.addEventListener('input', ()=>angleValue.textContent=angleSlider.value); if(velocitySlider) velocitySlider.addEventListener('input', ()=>velocityValue.textContent=parseFloat(velocitySlider.value).toFixed(2)); }
     function updateAsteroidInfo(){ const id = document.getElementById('asteroid-info'); if(!currentAsteroid) return; id.innerHTML = `<p style="margin:0;"><strong>Diameter:</strong> ${currentAsteroid.diameter_km.toFixed(3)} km<br><strong>Hazardous:</strong> ${currentAsteroid.is_potentially_hazardous? 'Yes':'No'}<br><strong>Close approach:</strong> ${currentAsteroid.close_approach_date || 'N/A'}</p>`; const vs = document.getElementById('velocity-slider'), vv = document.getElementById('velocity-value'); if(vs){ vs.value=currentAsteroid.velocity_kps; vv.textContent=currentAsteroid.velocity_kps.toFixed(2); } }
-    function calculateImpactEnergy(d,v,angle){ const m=(4/3)*Math.PI*Math.pow(d/2,3)*2000; const e=0.5*m*Math.pow(v*1000,2); return e*Math.sin(angle*Math.PI/180); }
+    function calculateImpactEnergy(d,v,angle){ const m=(4/3)*Math.PI*Math.pow(d/2,3)*2600; const e=0.5*m*Math.pow(v*1000,2); return e*Math.sin(angle*Math.PI/180); }
     function estimateCraterDiameter(e){ const target_density=2600; const K1=0.1; return K1*Math.pow(e/target_density,1/3.4); }
 
     // initial fetch so the UI has something locally when loaded

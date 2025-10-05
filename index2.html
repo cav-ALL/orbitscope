@@ -69,7 +69,6 @@
     <div class="logo">Orbitscope</div>
     <nav>
       <a data-page="simulation-page" class="active">Simulation</a>
-      <a data-page="mitigation">Mitigation strategies</a>
       <a data-page="about-page">About</a>
     </nav>
     <div class="user-profile"><span>A</span></div>
@@ -253,79 +252,126 @@
       setupSimulatorSliders();
     }
 
-    function runSimulation() {
-      const angle = parseFloat(document.getElementById('angle-slider').value);
-      const velocity = parseFloat(document.getElementById('velocity-slider').value);
-      const diameterKm = currentAsteroid.diameter_km;
+let map, marker;  // make them accessible outside initMap
+let craterCircle, affectedCircle; // store circles so we can remove/redraw
 
-      // Perform calculations
-      const { kineticEnergyJoules, megatonsTnt } = calculateImpactEnergy(diameterKm, angle, velocity);
-      const craterDiameterKm = estimateCraterDiameter(diameterKm, angle, velocity);
+function runSimulation() {
+  const angle = parseFloat(document.getElementById('angle-slider').value);
+  const velocity = parseFloat(document.getElementById('velocity-slider').value);
+  const diameterKm = currentAsteroid.diameter_km;
 
-      // Update results in the UI
-      document.getElementById('res-energy').textContent = `${(kineticEnergyJoules / 1e18).toPrecision(4)} EJ`;
-      document.getElementById('res-tnt').textContent = `${megatonsTnt.toPrecision(3)} Mt`;
-      document.getElementById('res-crater-d').textContent = `${craterDiameterKm.toPrecision(3)} km`;
-      document.getElementById('res-crater-h').textContent = `${(craterDiameterKm / 10).toPrecision(2)} km`;
+  // Perform calculations
+  const { kineticEnergyJoules, megatonsTnt } = calculateImpactEnergy(diameterKm, angle, velocity);
+  const craterDiameterKm = estimateCraterDiameter(diameterKm, angle, velocity);
 
-      const severity = megatonsTnt > 1000 ? 'PLANETARY' : megatonsTnt > 10 ? 'REGIONAL' : 'LOCAL';
-      document.getElementById('res-severity').textContent = severity;
+  // Update results in the UI
+  document.getElementById('res-energy').textContent = `${(kineticEnergyJoules / 1e18).toPrecision(4)} EJ`;
+  document.getElementById('res-tnt').textContent = `${megatonsTnt.toPrecision(3)} Mt`;
+  document.getElementById('res-crater-d').textContent = `${craterDiameterKm.toPrecision(3)} km`;
+  document.getElementById('res-crater-h').textContent = `${(craterDiameterKm / 10).toPrecision(2)} km`;
 
-      const affectedArea = Math.PI * Math.pow(craterDiameterKm * 15, 2);
-      document.getElementById('res-area').textContent = `${affectedArea.toLocaleString(undefined, { maximumFractionDigits: 0 })} km²`;
+  const severity = megatonsTnt > 1000 ? 'PLANETARY' : megatonsTnt > 10 ? 'REGIONAL' : 'LOCAL';
+  document.getElementById('res-severity').textContent = severity;
 
-      let casualties = 0;
-      if (megatonsTnt > 1) casualties = Math.pow(megatonsTnt, 0.6) * 1000;
-      document.getElementById('res-casualties').textContent =
-        casualties > 1e6
-          ? `${(casualties / 1e6).toPrecision(2)}M`
-          : casualties > 1e3
-          ? `${(casualties / 1e3).toPrecision(2)}K`
-          : casualties.toFixed(0);
+  const affectedArea = Math.PI * Math.pow(craterDiameterKm * 15, 2);
+  document.getElementById('res-area').textContent = `${affectedArea.toLocaleString(undefined, { maximumFractionDigits: 0 })} km²`;
 
-      let economicImpact = 0;
-      if (megatonsTnt > 1) economicImpact = Math.pow(megatonsTnt, 0.9) * 5;
-      document.getElementById('res-eco-impact').textContent =
-        economicImpact > 1e3
-          ? `$${(economicImpact / 1e3).toPrecision(3)}T`
-          : `$${economicImpact.toPrecision(3)}B`;
+  let casualties = 0;
+  if (megatonsTnt > 1) casualties = Math.pow(megatonsTnt, 0.6) * 1000;
+  document.getElementById('res-casualties').textContent =
+    casualties > 1e6
+      ? `${(casualties / 1e6).toPrecision(2)}M`
+      : casualties > 1e3
+      ? `${(casualties / 1e3).toPrecision(2)}K`
+      : casualties.toFixed(0);
 
-      // Show the results container
-      const resultsContainer = document.getElementById('results-container');
-      resultsContainer.style.display = 'block';
-      resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  let economicImpact = 0;
+  if (megatonsTnt > 1) economicImpact = Math.pow(megatonsTnt, 0.9) * 5;
+  document.getElementById('res-eco-impact').textContent =
+    economicImpact > 1e3
+      ? `$${(economicImpact / 1e3).toPrecision(3)}T`
+      : `$${economicImpact.toPrecision(3)}B`;
+
+  // Show the results container
+  const resultsContainer = document.getElementById('results-container');
+  resultsContainer.style.display = 'block';
+  resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // --- Draw circles on the map ---
+  if (map && marker) {
+    const latlng = marker.getLatLng();
+
+    // remove old circles if they exist
+    if (craterCircle) map.removeLayer(craterCircle);
+    if (affectedCircle) map.removeLayer(affectedCircle);
+
+    // Leaflet expects radius in meters, so km → meters
+    craterCircle = L.circle(latlng, {
+      radius: (craterDiameterKm / 2) * 1000, // crater radius
+      color: 'red',
+      fillColor: '#f03',
+      fillOpacity: 0.3
+    }).addTo(map);
+
+    affectedCircle = L.circle(latlng, {
+      radius: craterDiameterKm * 15 * 1000, // affected radius
+      color: 'orange',
+      fillColor: '#ff7800',
+      fillOpacity: 0.2
+    }).addTo(map);
+
+    // zoom map to fit the largest circle
+    map.fitBounds(affectedCircle.getBounds(), { maxZoom: 10 });
+  }
+}
+
+// ---------- Map & 3D Impact Scene ----------
+function initMap() {
+  const container = document.getElementById('map'); 
+  if (!container) return;
+  container.innerHTML = '';
+
+  map = L.map(container).setView([20, 0], 2);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; CartoDB',
+    subdomains: 'abcd',
+    noWrap: false
+  }).addTo(map);
+
+  marker = L.marker([28.63, -106.06], { draggable: true })
+    .addTo(map)
+    .bindPopup('Drag to select impact location.')
+    .openPopup();
+
+  const coordsDisplay = document.createElement('p');
+  coordsDisplay.style.marginTop = '1rem';
+  container.parentNode.insertBefore(coordsDisplay, container.nextSibling);
+
+  let landPolygons = null;
+  fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json')
+    .then(res => res.json())
+    .then(data => {
+      landPolygons = data;
+    })
+    .catch(err => console.error("Failed to load land polygons:", err));
+
+  // Function to update coordinates + land/water
+  const updateCoords = () => {
+    const latlng = marker.getLatLng();
+    let status = '';
+    if (landPolygons) {
+      const point = turf.point([latlng.lng, latlng.lat]); // GeoJSON uses [lon, lat]
+      const onLand = landPolygons.features.some(f => turf.booleanPointInPolygon(point, f));
+      status = onLand ? ' ✅ Land' : ' 🌊 Water';
+    } else {
+      status = ' (loading land data...)';
     }
-    // ---------- Map & 3D Impact Scene ----------
-    function initMap(){
-      const container = document.getElementById('map'); if(!container) return;
-      container.innerHTML='';
-      const map = L.map(container).setView([20,0],2);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{ attribution:'&copy; CartoDB',subdomains: 'abcd', noWrap:false}).addTo(map);
-      const marker = L.marker([28.63,-106.06],{draggable:true}).addTo(map).bindPopup('Drag to select impact location.').openPopup();
-      const coordsDisplay = document.createElement('p'); coordsDisplay.style.marginTop='1rem'; container.parentNode.insertBefore(coordsDisplay,container.nextSibling);
-      let landPolygons = null;
-    fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json')
-        .then(res => res.json())
-        .then(data => {
-            landPolygons = data;
-        })
-        .catch(err => console.error("Failed to load land polygons:", err));
-      // Function to update coordinates + land/water
-    const updateCoords = ()=>{
-        const latlng = marker.getLatLng();
-        let status = '';
-        if(landPolygons){
-            const point = turf.point([latlng.lng, latlng.lat]); // GeoJSON uses [lon, lat]
-            const onLand = landPolygons.features.some(f => turf.booleanPointInPolygon(point, f));
-            status = onLand ? ' ✅ Land' : ' 🌊 Water';
-        } else {
-            status = ' (loading land data...)';
-        }
-            coordsDisplay.innerHTML = `<strong>Coordinates:</strong> ${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)} ${status}`;
-      };
-      marker.on('drag', updateCoords); 
-      updateCoords();
-    }
+    coordsDisplay.innerHTML = `<strong>Coordinates:</strong> ${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)} ${status}`;
+  };
+
+  marker.on('drag', updateCoords);
+  updateCoords();
+}
 
     // 3D impact scene — Earth centered, asteroid animates into collision
     function init3dImpactScene(asteroid, velocity_kps, angle){

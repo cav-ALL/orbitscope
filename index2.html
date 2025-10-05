@@ -70,7 +70,7 @@
     <div class="logo">AstroImpact</div>
     <nav>
       <a data-page="simulation-page" class="active">Simulation</a>
-      <a data-page="orbits-page">3D Orbits</a>
+      <a data-page="mitigation">Mitigation strategies</a>
       <a data-page="about-page">About</a>
     </nav>
     <div class="user-profile"><span>A</span></div>
@@ -92,39 +92,16 @@
     </div>
 
 
-    <!-- 3D ORBITS PAGE -->
-    <div id="orbits-page" class="page-content">
-      <h1>3D Orbits</h1>
-      <p>Select one or more asteroids and trace their orbits around the Sun (with Earth centered view available).</p>
-      <div class="layout-grid">
-        <div class="card">
-          <h2>Orbit Controls</h2>
-          <div class="param-group">
-            <label for="orbits-asteroids">Select Asteroids</label>
-            <select id="orbits-asteroids" multiple size="8" style="height:240px"></select>
-          </div>
-          <div class="param-group">
-            <label for="show-planets">Show Planets</label>
-            <select id="show-planets"><option value="all">All</option><option value="inner">Inner</option><option value="none">None</option></select>
-          </div>
-          <button class="run-button" id="draw-orbits-btn">Draw Orbits</button>
-        </div>
-        <div class="card">
-          <h2>3D Orbits Visualization</h2>
-          <div id="scene-3d-orbits" style="height:520px"></div>
-        </div>
-      </div>
-    </div>
+
 
     <!-- ABOUT PAGE -->
     <div id="about-page" class="page-content">
       <div class="about-content">
         <h2>Sobre AstroImpact</h2>
-        <p>Simulador educativo y lúdico para entender impactos y mecánicas orbitales. Los datos provienen de la API pública de la NASA cuando está disponible.</p>
+        <p>Simulador educativo y lúdico para entender impactos. Los datos provienen de la API pública de la NASA cuando está disponible.</p>
         <h3>Cómo usar</h3>
         <ul>
           <li>En "Simulation" busca NEOs (Near-Earth Objects), selecciona uno y ejecuta la simulación.</li>
-          <li>En "3D Orbits" visualiza órbitas alrededor del Sol y selecciona asteroides para trazar sus trayectorias.</li>
         </ul>
       </div>
     </div>
@@ -176,7 +153,7 @@
       document.getElementById(pageId).classList.add('active');
       document.querySelectorAll('nav a').forEach(l=>l.classList.remove('active'));
       e.target.classList.add('active');
-      if(pageId==='orbits-page') populateOrbitsList();
+      
     }
 
     // Fetch from Flask backend
@@ -356,113 +333,7 @@
       animate();
     }
 
-    // ---------- 3D ORBITS (simplificada, visual y continua) ----------
-    const PLANETS = [
-      {name:'Mercury', r: 8, size:0.3, period:88},
-      {name:'Venus', r: 12, size:0.7, period:225},
-      {name:'Earth', r: 16, size:0.8, period:365},
-      {name:'Mars', r: 20, size:0.6, period:687},
-      {name:'Jupiter', r: 32, size:1.8, period:4333},
-      {name:'Saturn', r: 44, size:1.6, period:10759}
-    ];
-
-    let orbitsSceneData = null;
-
-    function populateOrbitsList(){
-      const sel = document.getElementById('orbits-asteroids'); sel.innerHTML='';
-      fetchedAsteroids.forEach(a=>{ const opt=document.createElement('option'); opt.value=a.id; opt.textContent=`${a.name} — ${a.diameter_km.toFixed(3)} km`; sel.appendChild(opt); });
-    }
-
-    document.getElementById('draw-orbits-btn').addEventListener('click', ()=>{
-      const selected = Array.from(document.getElementById('orbits-asteroids').selectedOptions).map(o=>o.value);
-      const showPlanets = document.getElementById('show-planets').value;
-      drawOrbits3D(selected, showPlanets);
-    });
-
-    function drawOrbits3D(selectedIds, showPlanetsMode){
-      const container = document.getElementById('scene-3d-orbits'); if(!container) return;
-      if(orbitsSceneData && orbitsSceneData.anim) cancelAnimationFrame(orbitsSceneData.anim);
-      container.innerHTML='';
-
-      const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(45, container.clientWidth/container.clientHeight, 0.1, 2000);
-      const renderer = new THREE.WebGLRenderer({antialias:true}); renderer.setSize(container.clientWidth, container.clientHeight); container.appendChild(renderer.domElement);
-      const controls = new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping=true;
-
-      scene.add(new THREE.AmbientLight(0x555555));
-      const light = new THREE.PointLight(0xffffff,1.2); light.position.set(0,0,0); scene.add(light);
-
-      // Sun
-      const sun = new THREE.Mesh(new THREE.SphereGeometry(3, 32, 32), new THREE.MeshBasicMaterial({color:0xffcc33})); scene.add(sun);
-
-      // Planets (optional)
-      const planetObjs = [];
-      if(showPlanetsMode!=='none'){
-        const planetsToShow = showPlanetsMode==='all'?PLANETS:PLANETS.filter(p=>['Mercury','Venus','Earth','Mars'].includes(p.name));
-        planetsToShow.forEach(p=>{
-          const geo = new THREE.SphereGeometry(p.size, 16, 16);
-          const mat = new THREE.MeshPhongMaterial({color:0x8888ff});
-          const mesh = new THREE.Mesh(geo, mat);
-          mesh.position.set(p.r,0,0);
-          scene.add(mesh);
-          // orbit line
-          const curve = new THREE.EllipseCurve(0,0,p.r,p.r,0,2*Math.PI,false,0);
-          const pts = curve.getPoints(128).map(pt=>new THREE.Vector3(pt.x,0,pt.y));
-          const geom = new THREE.BufferGeometry().setFromPoints(pts);
-          const line = new THREE.Line(geom, new THREE.LineBasicMaterial({color:0x666666})); scene.add(line);
-          planetObjs.push({mesh,p});
-        });
-      }
-
-      // draw asteroid orbits — use orbital elements if available, else random ellipse near Earth's orbit
-      const astObjs = [];
-      selectedIds.forEach(id=>{
-        const a = fetchedAsteroids.find(x=>x.id===id);
-        if(!a) return;
-        const sma = a.orbital ? (a.orbital.semi_major_axis_au || (16 + Math.random()*12)) : (16 + Math.random()*12);
-        const ecc = a.orbital ? (a.orbital.eccentricity || (0.05 + Math.random()*0.5)) : (0.05 + Math.random()*0.5);
-        const r = sma;
-        const pts = [];
-        const segments = 256;
-        for(let i=0;i<=segments;i++){
-          const theta = i/segments * Math.PI*2;
-          const x = r * Math.cos(theta) * (1 + ecc * Math.cos(theta));
-          const z = r * Math.sin(theta) * (1 - ecc * Math.sin(theta));
-          pts.push(new THREE.Vector3(x, 0, z));
-        }
-        const geom = new THREE.BufferGeometry().setFromPoints(pts);
-        const line = new THREE.Line(geom, new THREE.LineBasicMaterial({color:0xffaa00, linewidth:2})); scene.add(line);
-        const astMesh = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.12, a.diameter_km*0.25), 8, 8), new THREE.MeshPhongMaterial({color:0xff8800}));
-        astMesh.userData = {r, ecc, phase: Math.random()};
-        scene.add(astMesh);
-        astObjs.push(astMesh);
-      });
-
-      camera.position.set(60,40,80); camera.lookAt(new THREE.Vector3(0,0,0));
-
-      const start = Date.now();
-      function animate(){
-        orbitsSceneData.anim = requestAnimationFrame(animate);
-        const t = (Date.now() - start) / 1000; // seconds
-        // orbit planets
-        planetObjs.forEach(o=>{
-          const ang = (t / o.p.period) * Math.PI*2;
-          o.mesh.position.set(o.p.r * Math.cos(ang), 0, o.p.r * Math.sin(ang));
-        });
-        // asteroids
-        astObjs.forEach(m=>{
-          m.userData.phase += 0.0008 + (m.userData.r>30?0.0002:0.0008);
-          const phase = m.userData.phase;
-          const x = m.userData.r * Math.cos(phase);
-          const z = m.userData.r * Math.sin(phase) * (1 - (m.userData.ecc||0));
-          m.position.set(x, 0, z);
-        });
-
-        controls.update(); renderer.render(scene, camera);
-      }
-      animate();
-      orbitsSceneData = {scene,camera,renderer,anim:orbitsSceneData?.anim};
-    }
+    // ---------- 
 
     // ---------- Helpers ----------
     function setupTabs(){ document.querySelectorAll('.tab-button').forEach(button=>{ button.addEventListener('click', ()=>{ document.querySelectorAll('.tab-button, .tab-content').forEach(el=>el.classList.remove('active')); button.classList.add('active'); document.getElementById(button.dataset.tab).classList.add('active'); if(button.dataset.tab==='tab-2d') initMap(); if(button.dataset.tab==='tab-3d') init3dScene(); }); }); }
@@ -471,9 +342,7 @@
     function calculateImpactEnergy(d,v,angle){ const m=(4/3)*Math.PI*Math.pow(d/2,3)*2000; const e=0.5*m*Math.pow(v*1000,2); return e*Math.sin(angle*Math.PI/180); }
     function estimateCraterDiameter(e){ const target_density=2600; const K1=0.1; return K1*Math.pow(e/target_density,1/3.4); }
 
-    // lightweight 3D scene for non-impact preview
-    function init3dScene(){ const container=document.getElementById('scene-3d-container'); if(!container) return; if(window.previewAnim) cancelAnimationFrame(window.previewAnim); container.innerHTML=''; const scene=new THREE.Scene(); const camera=new THREE.PerspectiveCamera(60,container.clientWidth/container.clientHeight,0.1,1000); const renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setSize(container.clientWidth,container.clientHeight); container.appendChild(renderer.domElement); const controls=new THREE.OrbitControls(camera,renderer.domElement); controls.enableDamping=true; scene.add(new THREE.AmbientLight(0x666666)); const light=new THREE.DirectionalLight(0xffffff,1); light.position.set(10,10,5); scene.add(light); const earth=new THREE.Mesh(new THREE.SphereGeometry(5,64,64), new THREE.MeshPhongMaterial({map:new THREE.TextureLoader().load('https://eoimages.gsfc.nasa.gov/images/imagerecords/73000/73580/world.topo.bathy.200401.3x5400x2700.jpg')})); scene.add(earth); const asteroidObj=new THREE.Mesh(new THREE.SphereGeometry(0.2,16,16), new THREE.MeshPhongMaterial({color:0xffa500})); scene.add(asteroidObj); camera.position.set(10,10,20); let t=0; function animate(){ window.previewAnim=requestAnimationFrame(animate); t+=0.002; asteroidObj.position.set(15*Math.cos(t), 6*Math.sin(t*0.6), 15*Math.sin(t)); controls.update(); renderer.render(scene,camera); } animate(); }
-
+   
     // initial fetch so the UI has something locally when loaded
     fetchAsteroidData(startDateInput.value, daysRangeInput.value);
   </script>

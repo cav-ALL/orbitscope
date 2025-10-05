@@ -351,7 +351,7 @@
       const container = document.getElementById('map'); if(!container) return;
       container.innerHTML='';
       const map = L.map(container).setView([20,0],2);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{ attribution:'&copy; CartoDB', noWrap:true}).addTo(map);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{ attribution:'&copy; CartoDB',subdomains: 'abcd',subdomains: 'abcd', noWrap:false}).addTo(map);
       const marker = L.marker([28.63,-106.06],{draggable:true}).addTo(map).bindPopup('Drag to select impact location.').openPopup();
       const coordsDisplay = document.createElement('p'); coordsDisplay.style.marginTop='1rem'; container.parentNode.insertBefore(coordsDisplay,container.nextSibling);
       const updateCoords = ()=>{ coordsDisplay.innerHTML=`<strong>Coordinates:</strong> ${marker.getLatLng().lat.toFixed(4)}, ${marker.getLatLng().lng.toFixed(4)}`; };

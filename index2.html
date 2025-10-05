@@ -549,6 +549,71 @@ function estimateCraterDiameter(diameterKm, angle, velocityKps) {
 
     // initial fetch so the UI has something locally when loaded
     fetchAsteroidData(startDateInput.value, daysRangeInput.value);
+
+    async function getImpactEstimatesFromChatGPT({angle, velocity, craterDiameterKm, energy, lat, lon, locationType, affectedArea, richterMag }) {
+      
+      const megatonsTnt = energy / 4.184e15
+
+      const prompt = `
+      You are a planetary defense and disaster impact expert. 
+      Given the following asteroid impact parameters:
+      - Impact angle: ${angle}°
+      - Impact velocity: ${velocity.toFixed(2)} km/s
+      - Impact energy: ${megatonsTnt.toPrecision(4)} megatons of TNT
+      - Impact diameter: ${craterDiameterKm.toFixed(2)} km
+      - Affected area: ${affectedArea.toLocaleString(undefined, {maximumFractionDigits:0})} km^2
+      - Estimated earthquake magnitude: ${richterMag.toFixed(2)} (Richter scale)
+      - Impact location: ${locationType} at latitude ${lat.toFixed(2)}, longitude ${lon.toFixed(2)} (take into serious consideration whether it lands on water or land)
+
+      Estimate:
+      1. The number of casualties (dont round the numbers).
+      2. The economic impact in billions of USD (rounded to the nearest decimal, rough estimates are fine).
+      3. Produce a *concise briefing* for administrative and political decision-makers responsible for evacuation and relief efforts.
+
+      The briefing should include:
+      1. Refined estimates of casualties and economic impact.
+      2. Assessment of affected areas, including cities and coasts at risk.
+      3. Evaluation of potential secondary hazards (e.g., tsunamis or earthquakes) based on location.
+      4. Recommended mitigation and response strategies, with notes on feasibility and urgency.
+      5. Clear prioritization of immediate actions.
+
+      Respond with a single-line, valid JSON object only, with no trailing commas and all braces closed. Example:
+      {"casualties": 12345, "economic_impact_billion_usd": 67.8, "briefing": ...}
+      Numbers must not have commas.
+      `;
+
+      const response = await fetch('openai-proxy.php', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-3.5-turbo",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 500,
+          temperature: 0.7
+        })
+      });
+      const data = await response.json();
+      try {
+        const text = data.choices[0].message.content;
+        let match = text.match(/\{[\s\S]*\}/);
+        if (!match) {
+          // Try to auto-close the JSON if it's missing closing braces
+          let open = (text.match(/{/g) || []).length;
+          let close = (text.match(/}/g) || []).length;
+          let fixed = text;
+          while (close < open) { fixed += '}'; close++; }
+          match = [fixed];
+        }
+        if (match) {
+          // Remove commas from numbers (e.g., 2,000 -> 2000)
+          const cleaned = match[0].replace(/(\d),(\d{3})/g, '$1$2');
+          return JSON.parse(cleaned);
+        }
+      } catch (e) {
+        console.error("Failed to parse ChatGPT response:", e, data);
+      }
+      return { casualties: "?", economic_impact_billion_usd: "?" };
+    }
   </script>
 </body>
 </html>
